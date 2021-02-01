@@ -3,28 +3,59 @@ name: CD
 on:
   push:
     tags: v[0-9]+.[0-9]+.[0-9]+
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Version to deploy
-        default: 1.0.0
 
 env:
-  TARGET_VERSION: ${{ github.event.inputs.version || github.ref }}
+  AMAZON_ECR_PUBLIC_IMAGE: public.ecr.aws/l3g5a8a0/firefox-lambda
+  GITHUB_CONTAINER_REGISTRY_IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
-  release:
-    name: Create release
+  publish:
+    name: Publish image
     runs-on: ubuntu-latest
     steps:
     - name: Check out repository
       uses: actions/checkout@v2
-    - name: Strip target version prefix
-      run: echo TARGET_VERSION=${TARGET_VERSION#refs/*/v} >> $GITHUB_ENV
+    - name: Generate image metadata
+      id: docker_meta
+      uses: crazy-max/ghaction-docker-meta@v1
+      with:
+        images: |
+          ${{ env.AMAZON_ECR_PUBLIC_IMAGE }}
+          ${{ env.GITHUB_CONTAINER_REGISTRY_IMAGE }}
+        tag-sha: true
+        tag-semver: "{{version}}"
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Log into Amazon ECR Public
+      uses: docker/login-action@v1
+      with:
+        registry: public.ecr.aws
+        username: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        password: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+    - name: Log into GitHub Container Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ghcr.io
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.CR_PAT }}
+    - name: Build and publish image
+      id: docker_build
+      uses: docker/build-push-action@v2
+      with:
+        push: true
+        tags: ${{ steps.docker_meta.outputs.tags }}
+        labels: ${{ steps.docker_meta.outputs.labels }}
+        cache-from: type=registry,ref=${{ env.GITHUB_CONTAINER_REGISTRY_IMAGE }}:latest-dev
     - name: Create release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: v${{ env.TARGET_VERSION }}
-        release_name: Release v${{ env.TARGET_VERSION }}
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: |
+          Digest: `${{ steps.docker_build.outputs.digest }}`
+          Tags:
+          ```text
+          ${{ steps.docker_meta.outputs.tags }}
+          ```
