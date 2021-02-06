@@ -46,7 +46,7 @@ These snippets add Firefox Lambda to an existing Python Lambda container image.
 `Dockerfile`
 
 ```dockerfile
-FROM public.ecr.aws/l3g5a8a0/firefox-lambda:1.0.0 as firefox
+FROM public.ecr.aws/l3g5a8a0/firefox-lambda:1.0.1 as firefox
 
 FROM public.ecr.aws/lambda/python:3.8
 
@@ -59,7 +59,10 @@ RUN yum install -y \
     gtk3-3.22.30-3.amzn2 \
     libXt-1.1.5-3.amzn2.0.2 \
   && yum clean all \
-  && python3 -m pip install --no-cache-dir playwright==0.171.1
+  && python3 -m pip install --no-cache-dir playwright==1.8.0a1
+
+# Set Firefox binary path environment variable
+ENV FIREFOX_BINARY_PATH=/opt/firefox/firefox
 
 COPY app.py /
 CMD ["app.handler"]
@@ -68,29 +71,33 @@ CMD ["app.handler"]
 `app.py`
 
 ```python
-from pathlib import Path
+import os
 
-from playwright import sync_playwright
+from playwright.sync_api import sync_playwright
 
-firefox_binary_path = Path("/opt/firefox/firefox")
+
+def run(playwright):
+    firefox_binary_path_str = os.environ.get("FIREFOX_BINARY_PATH")
+
+    browser = None
+
+    try:
+        browser = playwright.firefox.launch(firefox_binary_path_str)
+        page = browser.new_page()
+
+        page.goto("https://www.mozilla.org")
+
+        browser.close()
+    except Exception:
+        if browser:
+            browser.close()
+
+        raise
 
 
 def handler(event, context):
-    with sync_playwright() as api:
-        browser = None
-
-        try:
-            browser = api.firefox.launch(firefox_binary_path)
-            page = browser.newPage()
-
-            page.goto("https://www.mozilla.org")
-
-            browser.close()
-        except Exception:
-            if browser:
-                browser.close()
-
-            raise
+    with sync_playwright() as playwright:
+        run(playwright)
 ```
 
 ## CI/CD

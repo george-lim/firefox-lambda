@@ -3,7 +3,7 @@ FROM public.ecr.aws/lambda/provided:al2 AS dev
 # Add local lib64 folder to LD_LIBRARY_PATH
 ENV LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
 
-# Add NodeSource repo
+# Add NodeSource repository
 RUN curl -sLO https://rpm.nodesource.com/setup_12.x \
   && bash setup_12.x \
   && rm setup_12.x
@@ -31,18 +31,18 @@ RUN yum install -y \
     yasm-devel-1.2.0-4.el7 \
   && yum clean all
 
-# Build NSS 3.55
-RUN curl -sLO https://ftp.mozilla.org/pub/security/nss/releases/NSS_3_55_RTM/src/nss-3.55-with-nspr-4.27.tar.gz \
-  && tar -xf nss-3.55-with-nspr-4.27.tar.gz \
-  && make -C nss-3.55/nss nss_build_all BUILD_OPT=1 USE_64=1 \
-  && cp -RL nss-3.55/dist/"$(cat nss-3.55/dist/latest)"/lib/* /usr/local/lib64 \
-  && rm -R nss-3.55 nss-3.55-with-nspr-4.27.tar.gz
+# Build NSS 3.60.1
+RUN curl -sLO https://ftp.mozilla.org/pub/security/nss/releases/NSS_3_60_1_RTM/src/nss-3.60.1-with-nspr-4.29.tar.gz \
+  && tar -xf nss-3.60.1-with-nspr-4.29.tar.gz \
+  && make -C nss-3.60.1/nss nss_build_all BUILD_OPT=1 USE_64=1 \
+  && cp -RL nss-3.60.1/dist/"$(cat nss-3.60.1/dist/latest)"/lib/* /usr/local/lib64 \
+  && rm -R nss-3.60.1 nss-3.60.1-with-nspr-4.29.tar.gz
 
 # Link missing library in Firefox archive script
 RUN mkdir -p /usr/lib/x86_64-linux-gnu \
   && ln -s /lib64/libstdc++.so.6.0.24 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
 
-# Build and archive Firefox from Playwright repo
+# Build and archive Firefox from Playwright repository
 RUN git config --global user.email you@example.com \
   && git clone https://github.com/microsoft/playwright.git \
   && ./playwright/browser_patches/prepare_checkout.sh firefox \
@@ -62,7 +62,10 @@ RUN yum install -y \
     gtk3-3.22.30-3.amzn2 \
     libXt-1.1.5-3.amzn2.0.2 \
   && yum clean all \
-  && python3 -m pip install --no-cache-dir playwright==0.171.1
+  && python3 -m pip install --no-cache-dir playwright==1.8.0a1
+
+# Set Firefox binary path environment variable
+ENV FIREFOX_BINARY_PATH=/opt/firefox/firefox
 
 FROM prod AS test
 

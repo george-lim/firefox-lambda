@@ -1,15 +1,16 @@
-from pathlib import Path
+import os
 
-from playwright import sync_playwright
+from playwright.sync_api import sync_playwright
 
-firefox_binary_path = Path("/opt/firefox/firefox")
 
-with sync_playwright() as api:
+def run(playwright):
+    firefox_binary_path_str = os.environ.get("FIREFOX_BINARY_PATH")
+
     browser = None
 
     try:
-        browser = api.firefox.launch(firefox_binary_path)
-        page = browser.newPage()
+        browser = playwright.firefox.launch(firefox_binary_path_str)
+        page = browser.new_page()
 
         page.goto("https://www.mozilla.org")
 
@@ -19,3 +20,7 @@ with sync_playwright() as api:
             browser.close()
 
         raise
+
+
+with sync_playwright() as playwright:
+    run(playwright)
