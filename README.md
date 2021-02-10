@@ -6,12 +6,12 @@
 
 ## [Usage](#usage) | [Features](#features) | [Examples](#examples) | [CI/CD](#cicd)
 
-Firefox Lambda is a [Lambda container image](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html) that builds a Playwright-patched version of Firefox. It guarantees that Firefox will function properly with [Playwright](https://playwright.dev) on AWS Lambda.
+Firefox Lambda is a [Lambda container image](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html) that builds a [Playwright](https://playwright.dev)-patched version of Firefox.
 
 ## Usage
 
 ```text
-Amazon ECR Public:         public.ecr.aws/l3g5a8a0/firefox-lambda
+Amazon ECR Public:         public.ecr.aws/george-lim/firefox-lambda
 GitHub Container Registry: ghcr.io/george-lim/firefox-lambda
 ```
 
@@ -46,7 +46,7 @@ These snippets add Firefox Lambda to an existing Python Lambda container image.
 `Dockerfile`
 
 ```dockerfile
-FROM public.ecr.aws/l3g5a8a0/firefox-lambda:1.0.1 as firefox
+FROM public.ecr.aws/george-lim/firefox-lambda:1.0.1 as firefox
 
 FROM public.ecr.aws/lambda/python:3.8
 
