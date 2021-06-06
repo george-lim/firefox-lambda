@@ -107,6 +107,8 @@ def handler(event, context):
 Because Firefox Lambda takes a very long time to build, it does not make sense to have GitHub Actions build the image. Instead, image building for CI/CD is done locally, and pushed to `ghcr.io/george-lim/firefox-lambda:latest-dev`. The `CD` workflow will then build the image from cache, and push the production tags to their respective registries.
 
 ```bash
+docker login ghcr.io -u george-lim --password-stdin
+
 docker buildx build \
     --tag ghcr.io/george-lim/firefox-lambda:latest-dev \
     --cache-to=type=registry,ref=ghcr.io/george-lim/firefox-lambda:latest-dev,mode=max \

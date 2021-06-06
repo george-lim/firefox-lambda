@@ -9,7 +9,7 @@ def run(playwright):
     browser = None
 
     try:
-        browser = playwright.firefox.launch(firefox_binary_path_str)
+        browser = playwright.firefox.launch(executable_path=firefox_binary_path_str)
         page = browser.new_page()
 
         page.goto("https://www.mozilla.org")
