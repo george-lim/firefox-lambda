@@ -6,7 +6,7 @@
 
 ## [Usage](#usage) | [Features](#features) | [Examples](#examples) | [CI/CD](#cicd)
 
-Firefox Lambda is a [Lambda container image](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html) that builds a [Playwright](https://playwright.dev)-patched version of Firefox.
+Firefox Lambda is a [Lambda container image](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html) that provides a [Playwright](https://playwright.dev)-patched version of Firefox. The image is built for the Python 3.8 runtime, and allows Firefox to be run both headfully or headlessly.
 
 ## Usage
 
@@ -15,7 +15,7 @@ Amazon ECR Public:         public.ecr.aws/george-lim/firefox-lambda
 GitHub Container Registry: ghcr.io/george-lim/firefox-lambda
 ```
 
-Firefox Lambda is published to Amazon ECR Public and GitHub Container Registry. The production image is configured to work with the Python 3.8 runtime out of the box.
+Firefox Lambda is published to Amazon ECR Public and GitHub Container Registry.
 
 ### Supported tags
 
@@ -23,48 +23,33 @@ Tags are provided in the repository's [releases](https://github.com/george-lim/f
 
 ### Installation
 
-To use Firefox Lambda directly, copy your Playwright python script to the image and modify the `executablePath` parameter in `firefox.launch(...)` to `/opt/firefox/firefox`.
+In your Lambda function code, modify the executable path of the `firefox.launch` call to the environment variable `FIREFOX_PATH`. Then, `COPY` the code into the Firefox Lambda image as usual - that's it!
 
-To add Firefox to an existing image, you will need to additionally add a few build steps to your image:
-
-1. Copy the `/opt/firefox` folder from Firefox Lambda.
-2. Install `dbus-glib`, `gtk3`, and `libXt` packages with Yum.
-3. Install Playwright in a supported runtime.
+To optionally configure the screen size of Xvfb, set the environment variable `XVFB_WHD` in your `Dockerfile`. The default value is `1280x720x16`.
 
 ## Features
 
-Playwright requires capabilities from Firefox that are not exposed natively without a [build patch](https://github.com/microsoft/playwright/tree/master/browser_patches). Thus, Firefox needs to be built with the patch applied in Amazon Linux 2 in order to work with Playwright.
+Playwright requires capabilities from Firefox that are not exposed natively without a [build patch](https://github.com/microsoft/playwright/tree/master/browser_patches). Thus, Firefox needs to be specifically built and patched in Amazon Linux 2 in order to work with Playwright.
 
-Firefox Lambda builds Firefox from the AWS base image for Lambda, without any optional Firefox dependencies. The final production image copies the `/opt/firefox` folder into a Python 3.8 Lambda container image and installs all necessary Firefox and Playwright dependencies.
+Firefox Lambda builds Firefox from the AWS base image for Lambda, without any optional Firefox dependencies. The final production image copies the `/opt/firefox/` folder into a Python 3.8 Lambda container image and installs all necessary Firefox and Playwright dependencies.
+
+Additionally, [Xvfb](https://www.x.org/releases/X11R7.6/doc/man/man1/Xvfb.1.xhtml) is installed and configured in the production image so that Firefox can run headfully.
 
 ## Examples
 
-### Add Firefox Lambda to an existing image
+### Start Playwright inside a Lambda function
 
-These snippets add Firefox Lambda to an existing Python Lambda container image.
+These snippets show how to start Playwright inside a Lambda function.
 
 `Dockerfile`
 
 ```dockerfile
-FROM public.ecr.aws/george-lim/firefox-lambda:1.0.1 as firefox
+FROM public.ecr.aws/george-lim/firefox-lambda:1.1.0
 
-FROM public.ecr.aws/lambda/python:3.8
+# Optional
+ENV XVFB_WHD=1280x720x16
 
-# Copy Firefox
-COPY --from=firefox /opt/firefox /opt/firefox
-
-# Install dependencies
-RUN yum install -y \
-    dbus-glib-0.100-7.2.amzn2 \
-    gtk3-3.22.30-3.amzn2 \
-    libXt-1.1.5-3.amzn2.0.2 \
-  && yum clean all \
-  && python3 -m pip install --no-cache-dir playwright==1.8.0a1
-
-# Set Firefox binary path environment variable
-ENV FIREFOX_BINARY_PATH=/opt/firefox/firefox
-
-COPY app.py /
+COPY app.py $LAMBDA_TASK_ROOT
 CMD ["app.handler"]
 ```
 
@@ -77,14 +62,15 @@ from playwright.sync_api import sync_playwright
 
 
 def run(playwright):
-    firefox_binary_path_str = os.environ.get("FIREFOX_BINARY_PATH")
-
+    firefox_path = os.environ.get("FIREFOX_PATH")
     browser = None
 
     try:
-        browser = playwright.firefox.launch(firefox_binary_path_str)
-        page = browser.new_page()
+        browser = playwright.firefox.launch(
+            executable_path=firefox_path, headless=False
+        )
 
+        page = browser.new_page()
         page.goto("https://www.mozilla.org")
 
         browser.close()
@@ -104,7 +90,7 @@ def handler(event, context):
 
 ### Local image building
 
-Because Firefox Lambda takes a very long time to build, it does not make sense to have GitHub Actions build the image. Instead, image building for CI/CD is done locally, and pushed to `ghcr.io/george-lim/firefox-lambda:latest-dev`. The `CD` workflow will then build the image from cache, and push the production tags to their respective registries.
+Building Firefox Lambda during CI/CD takes too long. Thus, image building for CI/CD is done locally, and cached to `ghcr.io/george-lim/firefox-lambda:latest-dev`. The `CD` workflow will then build the image from cache, and push production tags to the respective registries.
 
 ```bash
 docker login ghcr.io -u george-lim --password-stdin
@@ -116,6 +102,8 @@ docker buildx build \
 ```
 
 This will build Firefox Lambda and push the caches to GitHub Container Registry.
+
+You will need to create a [Personal Access Token](https://docs.github.com/en/github/authenticating-to-github/keeping-your-account-and-data-secure/creating-a-personal-access-token) on GitHub with `write:packages` and `read:packages` scopes in order to push the caches. Supply the Personal Access Token as the password when logging in.
 
 ### Secrets
 

@@ -11,7 +11,7 @@ RUN curl -sLO https://rpm.nodesource.com/setup_16.x \
 # Install dependencies
 RUN yum install -y \
     amazon-linux-extras-2.0.0-1.amzn2 \
-    clang-11.1.0-1.amzn2.0.2 \
+    clang-devel-11.1.0-1.amzn2.0.2 \
     git-2.23.4-1.amzn2.0.1 \
     nodejs-16.3.0-1nodesource \
     python-devel-2.7.18-1.amzn2.0.3 \
@@ -25,9 +25,9 @@ RUN yum install -y \
     gtk3-devel-3.22.30-3.amzn2 \
     libXt-devel-1.1.5-3.amzn2.0.2 \
     llvm-devel-11.1.0-1.amzn2.0.2 \
+    nasm-2.15.03-3.amzn2.0.1 \
     pango-devel-1.42.4-4.amzn2 \
     pulseaudio-libs-devel-10.0-3.amzn2.0.3 \
-    nasm-2.15.03-3.amzn2.0.1 \
   && yum clean all
 
 # Build NSS 3.65
@@ -44,35 +44,28 @@ RUN mkdir -p /usr/lib/x86_64-linux-gnu \
 # Build and archive Firefox from Playwright repository
 RUN git config --global user.email you@example.com \
   && git clone https://github.com/microsoft/playwright.git \
-  && ./playwright/browser_patches/prepare_checkout.sh firefox-stable \
-  && ./playwright/browser_patches/firefox-stable/build.sh \
-  && ./playwright/browser_patches/firefox-stable/archive.sh "$PWD"/firefox.zip \
+  && ./playwright/browser_patches/prepare_checkout.sh firefox \
+  && ./playwright/browser_patches/firefox/build.sh \
+  && ./playwright/browser_patches/firefox/archive.sh "$PWD"/firefox.zip \
   && unzip firefox.zip -d /opt \
   && rm -R playwright firefox.zip
 
 FROM public.ecr.aws/lambda/python:3.8 AS prod
 
 # Copy Firefox
-COPY --from=dev /opt/firefox /opt/firefox
+COPY --from=dev /opt/firefox/ /opt/firefox/
+
+# Set Firefox path environment variable
+ENV FIREFOX_PATH=/opt/firefox/firefox
 
 # Install dependencies
 RUN yum install -y \
     dbus-glib-0.100-7.2.amzn2 \
     gtk3-3.22.30-3.amzn2 \
     libXt-1.1.5-3.amzn2.0.2 \
+    xorg-x11-server-Xvfb-1.20.4-15.amzn2.0.2 \
   && yum clean all \
-  && python3 -m pip install --no-cache-dir playwright==1.11.2
+  && python3 -m pip install --no-cache-dir playwright==1.12.1
 
-# Set Firefox binary path environment variable
-ENV FIREFOX_BINARY_PATH=/opt/firefox/firefox
-
-FROM prod AS test
-
-# Copy test
-WORKDIR /
-COPY tests/test_goto_website.py .
-
-# Run test
-RUN python3 test_goto_website.py
-
-FROM prod
+COPY xvfb-lambda-entrypoint.sh /
+ENTRYPOINT ["/xvfb-lambda-entrypoint.sh"]
